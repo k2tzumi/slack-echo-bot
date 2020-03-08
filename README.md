@@ -1,10 +1,10 @@
 What is this?
 ==============================
 
- It's a web-hook application that notifies you when a public channel is created with Slack.  
- This application runs as a web app within a Google app script.  
- [Slack API] (When you register as an endpoint for a https://api.slack.com/apps) event subscription, you are notified of the name of the channel created for the Slack channel.
-
+ This bot can echo messages between specified channels.  
+ This bot runs as a web app within a Google app script.  
+ You can make this bot work by registering it as an endpoint for [Slack API](https://api.slack.com/apps) event subscriptions.
+ 
 REQUIREMENTS
 --------------------
 - `npm`
@@ -37,7 +37,7 @@ Turn on.
 Setting Request URL.  
 ex) https://script.google.com/macros/s/miserarenaiyo/exec  
 Add Workspace Event.   
-Select `channel_created`.
+Select `message.channels`.
 3. Activate Incoming Webhooks  
 Turn on.  
 Add New Webhook to Workspace.  
@@ -51,7 +51,6 @@ In order to run the application and change its behavior, you need to set the fol
 |--|--|--|--|
 |VERIFICATION_TOKEN|○|Basic Information > App Credentials > Verification Token|A token that easily authenticates the source of a hooked request|
 |INCOMING_WEBHOOKS_URL|○|Incoming Webhooks > Webhook URL|Incoming Webhooks URL Activated During Slack API Registration|
-|NOTIFICATION_MESSAGE|optional|Free text message|default `A public channel created :point_right: `|
 
 1. Open Project  
 `$ make open`
