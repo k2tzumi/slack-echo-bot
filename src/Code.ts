@@ -1,5 +1,7 @@
 import { MessageEvent } from "./MessageEvent";
 import { MessageAttachment } from "./MessageAttachment";
+import { ShareFile } from "./ShareFile";
+import { byteFormat } from "./Utils";
 
 const properties = PropertiesService.getScriptProperties();
 const VERIFICATION_TOKEN: string = properties.getProperty("VERIFICATION_TOKEN");
@@ -47,6 +49,8 @@ export function eventHandler(event: MessageEvent) {
   if (event.type === "message") {
     if (typeof event.subtype === "undefined" || event.subtype === null) {
       return messageSent(event);
+    } else if (event.subtype === "file_share") {
+      return fileShare(event);
     } else {
       console.info(`ignore subtype event ${event.subtype}`);
       return { ignored: event }
@@ -57,15 +61,23 @@ export function eventHandler(event: MessageEvent) {
   return { unsupported: event };
 }
 
-function messageSent(event: MessageEvent) {
-  const attachement: MessageAttachment = convertMessageAttachment(event);
+function messageSent(event: MessageEvent): { [key: string]: string; } {
+  const attachement: MessageAttachment = convertNormalMessageAttachment(event);
 
   postSlack(attachement);
 
   return { posted: attachement.text };
 }
 
-function convertMessageAttachment(event: MessageEvent): MessageAttachment {
+function fileShare(event: MessageEvent): { [key: string]: string; } {
+  const attachement: MessageAttachment = convertFileShareMessageAttachment(event);
+
+  postSlack(attachement);
+
+  return { posted: attachement.text };
+}
+
+function convertNormalMessageAttachment(event: MessageEvent): MessageAttachment {
   const attachment: MessageAttachment = {
     author_name: `<@${event.user}>`,
     author_link: author_link(event.user),
@@ -75,6 +87,25 @@ function convertMessageAttachment(event: MessageEvent): MessageAttachment {
     footer: `Posted in <#${event.channel}> @ ${extractLink(event)}`,
     ts: Number(event.event_ts)
   };
+
+  return attachment;
+}
+
+function convertFileShareMessageAttachment(event: MessageEvent): MessageAttachment {
+  const file: ShareFile = event.files[0];
+  const attachment: MessageAttachment = {
+    author_name: `<@${event.user}>`,
+    author_link: author_link(event.user),
+    author_icon: author_icon(event.user),
+    text: `${file.name} \`(size: ${byteFormat(file.size)}, mimetype: ${file.mimetype})\` shared.\n${file.permalink}`,
+    color: "#36a64f",
+    footer: `Posted in <#${event.channel}> @ ${extractLink(event)}`,
+    ts: Number(event.event_ts)
+  };
+
+  if (file.mimetype.indexOf("image/") === 0) {
+    return Object.assign(attachment, { image_url: file.permalink });
+  }
 
   return attachment;
 }
