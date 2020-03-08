@@ -1,4 +1,5 @@
 import { MessageEvent } from "./MessageEvent";
+import { MessageAttachment } from "./MessageAttachment";
 
 const properties = PropertiesService.getScriptProperties();
 const VERIFICATION_TOKEN: string = properties.getProperty("VERIFICATION_TOKEN");
@@ -44,10 +45,10 @@ function doPost(e): GoogleAppsScript.Content.TextOutput {
 
 export function eventHandler(event: MessageEvent) {
   if (event.type === "message") {
-    if (typeof event.text !== 'undefined') {
+    if (typeof event.subtype === "undefined" || event.subtype === null) {
       return messageSent(event);
     } else {
-      console.info(`ignore edited event ${event}`);
+      console.info(`ignore subtype event ${event.subtype}`);
       return { ignored: event }
     }
   }
@@ -57,37 +58,46 @@ export function eventHandler(event: MessageEvent) {
 }
 
 function messageSent(event: MessageEvent) {
-  const message: string = convertEchoMessage(event);
+  const attachement: MessageAttachment = convertMessageAttachment(event);
 
-  postSlack(message);
+  postSlack(attachement);
 
-  return { posted: message };
+  return { posted: attachement.text };
 }
 
-function convertEchoMessage(event: MessageEvent): string {
-  let message: string = event.text;
-  message += "\n";
-  message += `Posted by ${event.user} in <#${event.channel}> on ${unixTime2Date(event.event_ts)}`
-  message += "\n";
-  message += extractLink(event);
+function convertMessageAttachment(event: MessageEvent): MessageAttachment {
+  const attachment: MessageAttachment = {
+    author_name: `<@${event.user}>`,
+    author_link: author_link(event.user),
+    author_icon: author_icon(event.user),
+    text: event.text,
+    color: "#36a64f",
+    footer: `Posted in <#${event.channel}> @ ${extractLink(event)}`,
+    ts: Number(event.event_ts)
+  };
 
-  return message;
-}
-
-function unixTime2Date(ts: string): string {
-  const date = new Date(Number(ts) * 1000);
-
-  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()} ${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}`;
+  return attachment;
 }
 
 function extractLink(event: MessageEvent): string {
   let url = `https://my.slack.com/archives/${event.channel}/p${event.event_ts}`;
 
-  if (typeof event.thread_ts !== 'undefined') {
+  if (typeof event.thread_ts !== "undefined") {
     url += `?thread_ts=${event.thread_ts}&cid=${event.parent_user_id}`;
   }
 
   return url;
+}
+
+const SLACK_TEAM_ID: string = properties.getProperty("SLACK_TEAM_ID");
+
+function author_link(userID: string): string {
+  // return `https://my.slack.com/team/${userID}`;
+  return `slack://user?team=${SLACK_TEAM_ID}&id={userID}`;
+}
+
+function author_icon(userID: string): string {
+  return `https://ca.slack-edge.com/${SLACK_TEAM_ID}-${userID}-a0bc0d8fe3c7`
 }
 
 function isEventIdProceeded(eventId: string): boolean {
@@ -102,15 +112,11 @@ function isEventIdProceeded(eventId: string): boolean {
 }
 
 const POST_URL: string = properties.getProperty("INCOMING_WEBHOOKS_URL");
-const USER_NAME: string = "echo_bot";
-const ICON: string = ":robot_face:";
 
-function postSlack(message: string): void {
+function postSlack(attachment: MessageAttachment): void {
   const jsonData = {
-    icon_emoji: ICON,
     link_names: true,
-    text: message,
-    username: USER_NAME
+    attachments: [attachment],
   };
 
   const options: GoogleAppsScript.URL_Fetch.URLFetchRequestOptions = {

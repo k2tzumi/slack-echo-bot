@@ -1,7 +1,8 @@
-export interface MessageAttachments {
+export interface MessageAttachment {
     fallback?: string;
     color?: string;
     pretext?: string;
+    text?: string;
     author_name?: string;
     author_link?: string;
     author_icon?: string;
