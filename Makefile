@@ -37,3 +37,8 @@ pull: .clasp.json
 lint: ## Run tslint
 lint:
 	tslint --fix src/*.ts
+
+.PHONY: undeploy
+undeploy: ## all undeploy Google apps scripts
+undeploy:
+	clasp deployments | grep -e "@[0-9]" | cut -d" " -f2 | xargs -I{} clasp undeploy {}
