@@ -81,7 +81,6 @@ function convertNormalMessageAttachment(event: MessageEvent): MessageAttachment 
   const attachment: MessageAttachment = {
     author_name: `<@${event.user}>`,
     author_link: author_link(event.user),
-    author_icon: author_icon(event.user),
     text: event.text,
     color: "#36a64f",
     footer: `Posted in <#${event.channel}> @ ${extractLink(event)}`,
@@ -96,7 +95,6 @@ function convertFileShareMessageAttachment(event: MessageEvent): MessageAttachme
   const attachment: MessageAttachment = {
     author_name: `<@${event.user}>`,
     author_link: author_link(event.user),
-    author_icon: author_icon(event.user),
     text: `${file.name} \`(size: ${byteFormat(file.size)}, mimetype: ${file.mimetype})\` shared.\n${file.permalink}`,
     color: "#36a64f",
     footer: `Posted in <#${event.channel}> @ ${extractLink(event)}`,
@@ -120,15 +118,8 @@ function extractLink(event: MessageEvent): string {
   return url;
 }
 
-const SLACK_TEAM_ID: string = properties.getProperty("SLACK_TEAM_ID");
-
 function author_link(userID: string): string {
-  // return `https://my.slack.com/team/${userID}`;
-  return `slack://user?team=${SLACK_TEAM_ID}&id={userID}`;
-}
-
-function author_icon(userID: string): string {
-  return `https://ca.slack-edge.com/${SLACK_TEAM_ID}-${userID}-a0bc0d8fe3c7`
+  return `https://my.slack.com/team/${userID}`;
 }
 
 function isEventIdProceeded(eventId: string): boolean {
