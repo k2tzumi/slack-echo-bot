@@ -91,18 +91,33 @@ function convertNormalMessageAttachment(event: MessageEvent): MessageAttachment 
 }
 
 function convertFileShareMessageAttachment(event: MessageEvent): MessageAttachment {
-  const file: ShareFile = event.files[0];
+  let text: string = null;
+  let image_url: string = null;
+
+  event.files.forEach(file => {
+    if (text === null) {
+      text = '';
+    } else {
+      text += '\n';
+    }
+    text += `${file.name} \`(size: ${byteFormat(file.size)}, mimetype: ${file.mimetype})\` shared.\n${file.permalink}`;
+
+    if ((image_url === null) && (file.mimetype.indexOf("image/") === 0)) {
+      image_url = file.permalink;
+    }
+  });
+
   const attachment: MessageAttachment = {
     author_name: `<@${event.user}>`,
     author_link: author_link(event.user),
-    text: `${file.name} \`(size: ${byteFormat(file.size)}, mimetype: ${file.mimetype})\` shared.\n${file.permalink}`,
+    text: text,
     color: "#36a64f",
     footer: `Posted in <#${event.channel}> @ ${extractLink(event)}`,
     ts: Number(event.event_ts)
   };
 
-  if (file.mimetype.indexOf("image/") === 0) {
-    return Object.assign(attachment, { image_url: file.permalink });
+  if (image_url !== null) {
+    return Object.assign(attachment, { image_url: image_url });
   }
 
   return attachment;
