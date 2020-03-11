@@ -1,6 +1,5 @@
 import { MessageEvent } from "./MessageEvent";
 import { MessageAttachment } from "./MessageAttachment";
-import { ShareFile } from "./ShareFile";
 import { byteFormat } from "./Utils";
 
 const properties = PropertiesService.getScriptProperties();
@@ -47,10 +46,8 @@ function doPost(e): GoogleAppsScript.Content.TextOutput {
 
 export function eventHandler(event: MessageEvent) {
   if (event.type === "message") {
-    if (typeof event.subtype === "undefined" || event.subtype === null) {
+    if ((typeof event.subtype === "undefined") || (event.subtype === null) || (event.subtype === "file_share")) {
       return messageSent(event);
-    } else if (event.subtype === "file_share") {
-      return fileShare(event);
     } else {
       console.info(`ignore subtype event ${event.subtype}`);
       return { ignored: event }
@@ -62,50 +59,35 @@ export function eventHandler(event: MessageEvent) {
 }
 
 function messageSent(event: MessageEvent): { [key: string]: string; } {
-  const attachement: MessageAttachment = convertNormalMessageAttachment(event);
+  const attachement: MessageAttachment = convertMessageAttachment(event);
 
   postSlack(attachement);
 
   return { posted: attachement.text };
 }
 
-function fileShare(event: MessageEvent): { [key: string]: string; } {
-  const attachement: MessageAttachment = convertFileShareMessageAttachment(event);
-
-  postSlack(attachement);
-
-  return { posted: attachement.text };
-}
-
-function convertNormalMessageAttachment(event: MessageEvent): MessageAttachment {
-  const attachment: MessageAttachment = {
-    author_name: `<@${event.user}>`,
-    author_link: author_link(event.user),
-    text: event.text,
-    color: "#36a64f",
-    footer: `Posted in <#${event.channel}> @ ${extractLink(event)}`,
-    ts: Number(event.event_ts)
-  };
-
-  return attachment;
-}
-
-function convertFileShareMessageAttachment(event: MessageEvent): MessageAttachment {
+function convertMessageAttachment(event: MessageEvent): MessageAttachment {
   let text: string = null;
   let image_url: string = null;
 
-  event.files.forEach(file => {
-    if (text === null) {
-      text = '';
-    } else {
-      text += '\n';
-    }
-    text += `${file.name} \`(size: ${byteFormat(file.size)}, mimetype: ${file.mimetype})\` shared.\n${file.permalink}`;
+  if ((typeof event.subtype === "undefined") || (event.subtype === null)) {
+    text = event.text;
+  } else if (event.subtype === "file_share") {
+    event.files.forEach(file => {
+      if (text === null) {
+        text = '';
+      } else {
+        text += '\n';
+      }
+      text += `${file.name} \`(size: ${byteFormat(file.size)}, mimetype: ${file.mimetype})\` shared.\n${file.permalink}`;
 
-    if ((image_url === null) && (file.mimetype.indexOf("image/") === 0)) {
-      image_url = file.permalink;
-    }
-  });
+      if ((image_url === null) && (file.mimetype.indexOf("image/") === 0)) {
+        image_url = file.permalink;
+      }
+    });
+  } else {
+    throw new Event(`Illegal subtype event ${event.subtype}`);
+  }
 
   const attachment: MessageAttachment = {
     author_name: `<@${event.user}>`,
