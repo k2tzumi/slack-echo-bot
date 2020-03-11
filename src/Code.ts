@@ -46,11 +46,14 @@ function doPost(e): GoogleAppsScript.Content.TextOutput {
 
 export function eventHandler(event: MessageEvent) {
   if (event.type === "message") {
-    if ((typeof event.subtype === "undefined") || (event.subtype === null) || (event.subtype === "file_share")) {
-      return messageSent(event);
-    } else {
-      console.info(`ignore subtype event ${event.subtype}`);
-      return { ignored: event }
+    switch (event.subtype || '') {
+      case '':
+      case 'file_share':
+      case 'thread_broadcast':
+        return messageSent(event);
+      default:
+        console.info(`ignore subtype event ${event.subtype}`);
+        return { ignored: event }
     }
   }
 
@@ -67,27 +70,19 @@ function messageSent(event: MessageEvent): { [key: string]: string; } {
 }
 
 function convertMessageAttachment(event: MessageEvent): MessageAttachment {
-  let text: string = null;
+  let text: string = event.text || '';
   let image_url: string = null;
 
-  if ((typeof event.subtype === "undefined") || (event.subtype === null)) {
-    text = event.text;
-  } else if (event.subtype === "file_share") {
-    event.files.forEach(file => {
-      if (text === null) {
-        text = '';
-      } else {
-        text += '\n';
-      }
-      text += `${file.name} \`(size: ${byteFormat(file.size)}, mimetype: ${file.mimetype})\` shared.\n${file.permalink}`;
+  (event.files || []).forEach(file => {
+    if (text !== '') {
+      text += '\n';
+    }
+    text += `${file.name} \`(size: ${byteFormat(file.size)}, mimetype: ${file.mimetype})\` shared.\n${file.permalink}`;
 
-      if ((image_url === null) && (file.mimetype.indexOf("image/") === 0)) {
-        image_url = file.permalink;
-      }
-    });
-  } else {
-    throw new Event(`Illegal subtype event ${event.subtype}`);
-  }
+    if ((image_url === null) && (file.mimetype.indexOf("image/") === 0)) {
+      image_url = file.permalink;
+    }
+  });
 
   const attachment: MessageAttachment = {
     author_name: `<@${event.user}>`,
@@ -109,7 +104,7 @@ function extractLink(event: MessageEvent): string {
   let url = `https://my.slack.com/archives/${event.channel}/p${event.event_ts}`;
 
   if (typeof event.thread_ts !== "undefined") {
-    url += `?thread_ts=${event.thread_ts}&cid=${event.parent_user_id}`;
+    url += `?thread_ts=${event.thread_ts}&cid=${event.parent_user_id || event.user}`;
   }
 
   return url;
