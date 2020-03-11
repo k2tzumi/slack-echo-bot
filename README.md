@@ -51,6 +51,7 @@ In order to run the application and change its behavior, you need to set the fol
 |--|--|--|--|
 |VERIFICATION_TOKEN|○|Basic Information > App Credentials > Verification Token|A token that easily authenticates the source of a hooked request|
 |INCOMING_WEBHOOKS_URL|○|Incoming Webhooks > Webhook URL|Incoming Webhooks URL Activated During Slack API Registration|
+|SLACK_WORKSPACE_NAME|optional|your workspace's name. e.g.) https://`example`.slack.com |default `my`|
 
 1. Open Project  
 `$ make open`

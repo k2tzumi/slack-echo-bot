@@ -100,8 +100,10 @@ function convertMessageAttachment(event: MessageEvent): MessageAttachment {
   return attachment;
 }
 
+const SLACK_WORKSPACE_NAME: string = properties.getProperty("SLACK_WORKSPACE_NAME") || 'my';
+
 function extractLink(event: MessageEvent): string {
-  let url = `https://my.slack.com/archives/${event.channel}/p${event.event_ts}`;
+  let url = `https://${SLACK_WORKSPACE_NAME}.slack.com/archives/${event.channel}/p${event.event_ts}`;
 
   if (typeof event.thread_ts !== "undefined") {
     url += `?thread_ts=${event.thread_ts}&cid=${event.parent_user_id || event.user}`;
@@ -111,7 +113,7 @@ function extractLink(event: MessageEvent): string {
 }
 
 function author_link(userID: string): string {
-  return `https://my.slack.com/team/${userID}`;
+  return `https://${SLACK_WORKSPACE_NAME}.slack.com/team/${userID}`;
 }
 
 function isEventIdProceeded(eventId: string): boolean {
