@@ -1,9 +1,79 @@
+import { OAuth2 } from "apps-script-oauth2/src/OAuth2";
+import { Service } from "apps-script-oauth2/src/Service";
 import { MessageEvent } from "./MessageEvent";
 import { MessageAttachment } from "./MessageAttachment";
 import { byteFormat } from "./Utils";
+import { Profile } from "./Profile";
 
 const properties = PropertiesService.getScriptProperties();
 const VERIFICATION_TOKEN: string = properties.getProperty("VERIFICATION_TOKEN");
+
+/**
+ * Authorizes and makes a request to the Slack API.
+ */
+function doGet(request): GoogleAppsScript.HTML.HtmlOutput {
+  const service: Service = getService();
+
+  if (service.hasAccess()) {
+    return HtmlService.createHtmlOutput('OK');
+  } else {
+    const authorizationUrl = service.getAuthorizationUrl();
+    const template = HtmlService.createTemplate('<a href="<?= authorizationUrl ?>" target="_blank">Authorize</a>.');
+    template.authorizationUrl = authorizationUrl;
+    return HtmlService.createHtmlOutput(template.evaluate());
+  }
+}
+
+const CLIENT_ID: string = properties.getProperty("CLIENT_ID");
+const CLIENT_SECRET: string = properties.getProperty("CLIENT_SECRET");
+
+/**
+ * Configures the service.
+ */
+function getService(): Service {
+  return OAuth2.createService('slack')
+    .setAuthorizationBaseUrl('https://slack.com/oauth/authorize')
+    .setTokenUrl('https://slack.com/api/oauth.access')
+    .setClientId(CLIENT_ID)
+    .setClientSecret(CLIENT_SECRET)
+    .setCallbackFunction('authCallback')
+    .setPropertyStore(PropertiesService.getUserProperties())
+    .setScope('bot chat:write:bot channels:read channels:history users.profile:read');
+}
+
+/**
+ * Handles the OAuth callback.
+ */
+function authCallback(request): GoogleAppsScript.HTML.HtmlOutput {
+  const service: Service = getService();
+  const authorized = service.handleCallback(request);
+  if (authorized) {
+    return HtmlService.createHtmlOutput('Success!');
+  } else {
+    return HtmlService.createHtmlOutput('Denied.');
+  }
+}
+
+/**
+ * Reset the authorization state, so that it can be re-tested.
+ */
+function clearService() {
+  getService().reset();
+}
+
+/**
+ * Logs the redict URI to register.
+ */
+function logRedirectUri() {
+  console.log(OAuth2.getRedirectUri());
+}
+
+const ACCESS_TOKEN: string = properties.getProperty("ACCESS_TOKEN");
+
+function getAccessToken(): string {
+  //return getService().getAccessToken();
+  return ACCESS_TOKEN;
+}
 
 function doPost(e): GoogleAppsScript.Content.TextOutput {
   const postData = JSON.parse(e.postData.getDataAsString());
@@ -85,19 +155,62 @@ function convertMessageAttachment(event: MessageEvent): MessageAttachment {
   });
 
   const attachment: MessageAttachment = {
-    author_name: `<@${event.user}>`,
-    author_link: author_link(event.user),
     text: text,
     color: "#36a64f",
     footer: `Posted in <#${event.channel}> @ ${extractLink(event)}`,
     ts: Number(event.event_ts)
   };
 
-  if (image_url !== null) {
-    return Object.assign(attachment, { image_url: image_url });
-  }
+  return Object.assign(attachment, profileAttachment(event.user), image_url ? { image_url: image_url } : null);
+}
 
-  return attachment;
+function profileAttachment(userID: string): MessageAttachment {
+  const profile = getProfile(userID);
+  const link = author_link(userID);
+
+  if (profile) {
+    const atachment: MessageAttachment = {
+      author_name: profile.display_name,
+      author_icon: profile.image_32,
+      author_link: link,
+    };
+
+    return atachment;
+  } else {
+    const atachment: MessageAttachment = {
+      author_name: `<@${userID}>`,
+      author_link: link,
+    };
+
+    return atachment;
+  }
+}
+
+function getProfile(userID: string): Profile | null {
+  const cash = CacheService.getScriptCache();
+  const value = JSON.parse(cash.get(userID));
+
+  if (value !== null) {
+    const profile: Profile = {
+      display_name: value.display_name,
+      image_32: value.image_32
+    }
+    return profile;
+  } else {
+    const response = JSON.parse(UrlFetchApp.fetch(`https://slack.com/api/users.profile.get?token=${getAccessToken()}&user=${userID}`).getContentText());
+
+    if (response.ok) {
+      const profile: Profile = {
+        display_name: response.profile.display_name,
+        image_32: response.profile.image_32
+      }
+      cash.put(userID, JSON.stringify(profile));
+      return profile;
+    } else {
+      console.warn(`error: ${response.error}, userID: ${userID}`);
+      return null;
+    }
+  }
 }
 
 const SLACK_WORKSPACE_NAME: string = properties.getProperty("SLACK_WORKSPACE_NAME") || 'my';
