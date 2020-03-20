@@ -4,6 +4,7 @@ import { MessageEvent } from "./MessageEvent";
 import { MessageAttachment } from "./MessageAttachment";
 import { byteFormat } from "./Utils";
 import { Profile } from "./Profile";
+import { TeamInfo } from "./TeamInfo";
 
 const properties = PropertiesService.getScriptProperties();
 const VERIFICATION_TOKEN: string = properties.getProperty("VERIFICATION_TOKEN");
@@ -38,7 +39,7 @@ function getService(): Service {
     .setClientSecret(CLIENT_SECRET)
     .setCallbackFunction('authCallback')
     .setPropertyStore(PropertiesService.getUserProperties())
-    .setScope('bot chat:write:bot channels:read channels:history users.profile:read');
+    .setScope('bot chat:write channels:read channels:history users.profile:read team:read');
 }
 
 /**
@@ -75,6 +76,8 @@ function getAccessToken(): string {
   return ACCESS_TOKEN;
 }
 
+let team_id: string;
+
 function doPost(e): GoogleAppsScript.Content.TextOutput {
   const postData = JSON.parse(e.postData.getDataAsString());
   if (postData.token !== VERIFICATION_TOKEN) {
@@ -94,6 +97,7 @@ function doPost(e): GoogleAppsScript.Content.TextOutput {
     case "event_callback":
       console.log({ message: "event_callback called.", data: postData });
       if (!isEventIdProceeded(postData.event_id)) {
+
         res = eventHandler(postData.event);
       } else {
         console.warn({
@@ -213,10 +217,8 @@ function getProfile(userID: string): Profile | null {
   }
 }
 
-const SLACK_WORKSPACE_NAME: string = properties.getProperty("SLACK_WORKSPACE_NAME") || 'my';
-
 function extractLink(event: MessageEvent): string {
-  let url = `https://${SLACK_WORKSPACE_NAME}.slack.com/archives/${event.channel}/p${event.event_ts}`;
+  let url = `https://${workspaceName()}.slack.com/archives/${event.channel}/p${event.event_ts}`;
 
   if (typeof event.thread_ts !== "undefined") {
     url += `?thread_ts=${event.thread_ts}&cid=${event.parent_user_id || event.user}`;
@@ -225,8 +227,50 @@ function extractLink(event: MessageEvent): string {
   return url;
 }
 
+function workspaceName(): string {
+  const SLACK_WORKSPACE_NAME: string = properties.getProperty("SLACK_WORKSPACE_NAME");
+
+  if (SLACK_WORKSPACE_NAME !== null) {
+    return SLACK_WORKSPACE_NAME;
+  } else {
+    const teamInfo: TeamInfo = getTeamInfo();
+
+    if (teamInfo !== null) {
+      return teamInfo.domain;
+    } else {
+      return 'my';
+    }
+  }
+}
+
+function getTeamInfo(): TeamInfo | null {
+  const cash = CacheService.getScriptCache();
+  const value = JSON.parse(cash.get(CLIENT_ID));
+
+  if (value !== null) {
+    const teamInfo: TeamInfo = {
+      domain: value.domain
+    }
+    return teamInfo;
+  } else {
+    const response = JSON.parse(UrlFetchApp.fetch(`https://slack.com/api/team.info?token=${getAccessToken()}`).getContentText());
+
+    if (response.ok) {
+      const teamInfo: TeamInfo = {
+        domain: response.team.domain
+      }
+
+      cash.put(CLIENT_ID, JSON.stringify(teamInfo));
+      return teamInfo;
+    } else {
+      console.warn(`error: ${response.error}`);
+      return null;
+    }
+  }
+}
+
 function author_link(userID: string): string {
-  return `https://${SLACK_WORKSPACE_NAME}.slack.com/team/${userID}`;
+  return `https://${workspaceName()}.slack.com/team/${userID}`;
 }
 
 function isEventIdProceeded(eventId: string): boolean {
