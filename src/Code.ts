@@ -236,6 +236,8 @@ function workspaceName(): string {
     const teamInfo: TeamInfo = getTeamInfo();
 
     if (teamInfo !== null) {
+      properties.setProperty('SLACK_WORKSPACE_NAME', teamInfo.domain);
+
       return teamInfo.domain;
     } else {
       return 'my';
@@ -244,28 +246,17 @@ function workspaceName(): string {
 }
 
 function getTeamInfo(): TeamInfo | null {
-  const cash = CacheService.getScriptCache();
-  const value = JSON.parse(cash.get(CLIENT_ID));
+  const response = JSON.parse(UrlFetchApp.fetch(`https://slack.com/api/team.info?token=${getAccessToken()}`).getContentText());
 
-  if (value !== null) {
+  if (response.ok) {
     const teamInfo: TeamInfo = {
-      domain: value.domain
+      domain: response.team.domain
     }
+
     return teamInfo;
   } else {
-    const response = JSON.parse(UrlFetchApp.fetch(`https://slack.com/api/team.info?token=${getAccessToken()}`).getContentText());
-
-    if (response.ok) {
-      const teamInfo: TeamInfo = {
-        domain: response.team.domain
-      }
-
-      cash.put(CLIENT_ID, JSON.stringify(teamInfo));
-      return teamInfo;
-    } else {
-      console.warn(`error: ${response.error}`);
-      return null;
-    }
+    console.warn(`error: ${response.error}`);
+    return null;
   }
 }
 
