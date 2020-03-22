@@ -5,6 +5,8 @@ import { MessageAttachment } from "./MessageAttachment";
 import { byteFormat } from "./Utils";
 import { Profile } from "./Profile";
 import { TeamInfo } from "./TeamInfo";
+import { TokenPayload } from "./TokenPayload";
+import { OauthAccess } from "./OauthAccess";
 
 const properties = PropertiesService.getScriptProperties();
 const VERIFICATION_TOKEN: string = properties.getProperty("VERIFICATION_TOKEN");
@@ -18,9 +20,9 @@ function doGet(request): GoogleAppsScript.HTML.HtmlOutput {
   if (service.hasAccess()) {
     return HtmlService.createHtmlOutput('OK');
   } else {
-    const authorizationUrl = service.getAuthorizationUrl();
-    const template = HtmlService.createTemplate('<a href="<?= authorizationUrl ?>" target="_blank">Authorize</a>.');
-    template.authorizationUrl = authorizationUrl;
+    const template = HtmlService.createTemplate('RedirectUri:<?= redirectUrl ?> <br /><a href="<?= authorizationUrl ?>" target="_blank">Authorize</a>.');
+    template.authorizationUrl = service.getAuthorizationUrl();
+    template.redirectUrl = service.getRedirectUri();
     return HtmlService.createHtmlOutput(template.evaluate());
   }
 }
@@ -35,11 +37,13 @@ function getService(): Service {
   return OAuth2.createService('slack')
     .setAuthorizationBaseUrl('https://slack.com/oauth/v2/authorize')
     .setTokenUrl('https://api.slack.com/methods/oauth.v2.access')
+    .setTokenFormat('application/x-www-form-urlencoded')
     .setClientId(CLIENT_ID)
     .setClientSecret(CLIENT_SECRET)
     .setCallbackFunction('authCallback')
-    .setPropertyStore(properties)
-    .setScope('bot,chat:write,channels:read,channels:history,users.profile:read,team:read,incoming-webhook');
+    .setPropertyStore(PropertiesService.getUserProperties())
+    .setScope('chat:write,channels:read,channels:history,users.profile:read,team:read,incoming-webhook')
+    .setTokenPayloadHandler(tokenPayloadHandler);
 }
 
 /**
@@ -49,10 +53,40 @@ function authCallback(request): GoogleAppsScript.HTML.HtmlOutput {
   const service: Service = getService();
   const authorized = service.handleCallback(request);
   if (authorized) {
-    return HtmlService.createHtmlOutput('Success!');
+    return HtmlService.createHtmlOutput('Success! You can close this tab.');
   } else {
-    return HtmlService.createHtmlOutput('Denied.');
+    return HtmlService.createHtmlOutput('Denied. You can close this tab.');
   }
+}
+
+const tokenPayloadHandler = function (tokenPayload: TokenPayload): TokenPayload {
+  const formData = {
+    client_id: tokenPayload.client_id,
+    client_secret: tokenPayload.client_secret,
+    code: tokenPayload.code,
+    redirect_uri: tokenPayload.redirect_uri,
+  };
+
+  const options: GoogleAppsScript.URL_Fetch.URLFetchRequestOptions = {
+    contentType: "application/x-www-form-urlencoded",
+    method: "post",
+    payload: formData
+  };
+
+  const response: OauthAccess = JSON.parse(UrlFetchApp.fetch('https://slack.com/api/oauth.v2.access', options).getContentText());
+
+  if (response.ok) {
+    // Save access token.
+    properties.setProperty('ACCESS_TOKEN', response.access_token);
+    // Save incoming webhook.
+    properties.setProperty('INCOMING_WEBHOOKS_URL', response.incoming_webhook.url);
+  } else {
+    console.warn(`error: ${response.error}`);
+  }
+
+  delete tokenPayload.client_id;
+
+  return tokenPayload;
 }
 
 /**
@@ -284,7 +318,7 @@ function isEventIdProceeded(eventId: string): boolean {
   }
 }
 
-const POST_URL: string = properties.getProperty("INCOMING_WEBHOOKS_URL");
+const INCOMING_WEBHOOKS_URL: string = properties.getProperty("INCOMING_WEBHOOKS_URL");
 
 function postSlack(attachment: MessageAttachment): void {
   const jsonData = {
@@ -298,5 +332,5 @@ function postSlack(attachment: MessageAttachment): void {
     payload: JSON.stringify(jsonData)
   };
 
-  UrlFetchApp.fetch(POST_URL, options);
+  UrlFetchApp.fetch(INCOMING_WEBHOOKS_URL, options);
 }
