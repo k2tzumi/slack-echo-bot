@@ -33,13 +33,13 @@ const CLIENT_SECRET: string = properties.getProperty("CLIENT_SECRET");
  */
 function getService(): Service {
   return OAuth2.createService('slack')
-    .setAuthorizationBaseUrl('https://slack.com/oauth/authorize')
-    .setTokenUrl('https://slack.com/api/oauth.access')
+    .setAuthorizationBaseUrl('https://slack.com/oauth/v2/authorize')
+    .setTokenUrl('https://api.slack.com/methods/oauth.v2.access')
     .setClientId(CLIENT_ID)
     .setClientSecret(CLIENT_SECRET)
     .setCallbackFunction('authCallback')
-    .setPropertyStore(PropertiesService.getUserProperties())
-    .setScope('bot chat:write channels:read channels:history users.profile:read team:read');
+    .setPropertyStore(properties)
+    .setScope('bot,chat:write,channels:read,channels:history,users.profile:read,team:read,incoming-webhook');
 }
 
 /**
@@ -69,14 +69,22 @@ function logRedirectUri() {
   console.log(OAuth2.getRedirectUri());
 }
 
-const ACCESS_TOKEN: string = properties.getProperty("ACCESS_TOKEN");
-
 function getAccessToken(): string {
-  //return getService().getAccessToken();
-  return ACCESS_TOKEN;
-}
+  const ACCESS_TOKEN: string = properties.getProperty("ACCESS_TOKEN");
 
-let team_id: string;
+  if (ACCESS_TOKEN !== null) {
+    return ACCESS_TOKEN;
+  } else {
+    const token: string = getService().getAccessToken();
+
+    if (token !== null) {
+      // Save access token.
+      properties.setProperty('ACCESS_TOKEN', token);
+
+      return token;
+    }
+  }
+}
 
 function doPost(e): GoogleAppsScript.Content.TextOutput {
   const postData = JSON.parse(e.postData.getDataAsString());
@@ -236,6 +244,7 @@ function workspaceName(): string {
     const teamInfo: TeamInfo = getTeamInfo();
 
     if (teamInfo !== null) {
+      // Save workspace name.
       properties.setProperty('SLACK_WORKSPACE_NAME', teamInfo.domain);
 
       return teamInfo.domain;
