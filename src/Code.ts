@@ -216,7 +216,7 @@ function profileAttachment(userID: string): MessageAttachment {
 
   if (profile) {
     const atachment: MessageAttachment = {
-      author_name: profile.display_name,
+      author_name: createAuthorName(profile),
       author_icon: profile.image_32,
       author_link: link,
     };
@@ -232,6 +232,21 @@ function profileAttachment(userID: string): MessageAttachment {
   }
 }
 
+function createAuthorName(profile: Profile) {
+  let authorName;
+
+  if (profile.display_name) {
+    authorName = profile.display_name;
+  } else {
+    authorName = profile.real_name;
+  }
+  if (profile.status_emoji) {
+    authorName += ' ' + profile.status_emoji;
+  }
+
+  return authorName;
+}
+
 function getProfile(userID: string): Profile | null {
   const cash = CacheService.getScriptCache();
   const value = JSON.parse(cash.get(userID));
@@ -239,7 +254,9 @@ function getProfile(userID: string): Profile | null {
   if (value !== null) {
     const profile: Profile = {
       display_name: value.display_name,
-      image_32: value.image_32
+      real_name: value.real_name,
+      image_32: value.image_32,
+      status_emoji: value.status_emoji,
     }
     return profile;
   } else {
@@ -248,7 +265,9 @@ function getProfile(userID: string): Profile | null {
     if (response.ok) {
       const profile: Profile = {
         display_name: response.profile.display_name,
-        image_32: response.profile.image_32
+        real_name: response.profile.real_name,
+        image_32: response.profile.image_32,
+        status_emoji: response.profile.status_emoji,
       }
       cash.put(userID, JSON.stringify(profile));
       return profile;

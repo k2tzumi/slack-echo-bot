@@ -1,9 +1,9 @@
 export interface Profile {
     avatar_hash?: string;
     status_text?: string;
-    status_emoji?: string;
+    status_emoji: string;
     status_expiration?: number;
-    real_name?: string;
+    real_name: string;
     display_name: string;
     real_name_normalized?: string;
     display_name_normalized?: string;
