@@ -49,7 +49,7 @@ function getService(): Service {
     .setClientSecret(CLIENT_SECRET)
     .setCallbackFunction('authCallback')
     .setPropertyStore(PropertiesService.getUserProperties())
-    .setScope('chat:write,channels:read,channels:history,users.profile:read,team:read,incoming-webhook,channels:manage')
+    .setScope('chat:write,channels:read,channels:history,users.profile:read,team:read,incoming-webhook')
     .setTokenPayloadHandler(tokenPayloadHandler);
 }
 
