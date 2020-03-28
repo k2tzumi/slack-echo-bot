@@ -60,18 +60,18 @@ function authCallback(request): GoogleAppsScript.HTML.HtmlOutput {
   const service: Service = getService();
   const authorized = service.handleCallback(request);
   if (authorized) {
-    return HtmlService.createHtmlOutput('Success! You can close this tab.');
+    initializeProperty(request.parameter.code);
+    return HtmlService.createHtmlOutput("Success! You can close this tab.");
   } else {
     return HtmlService.createHtmlOutput('Denied. You can close this tab.');
   }
 }
 
-const tokenPayloadHandler = function (tokenPayload: TokenPayload): TokenPayload {
+function initializeProperty(code: string) {
   const formData = {
-    client_id: tokenPayload.client_id,
-    client_secret: tokenPayload.client_secret,
-    code: tokenPayload.code,
-    redirect_uri: tokenPayload.redirect_uri,
+    client_id: CLIENT_ID,
+    client_secret: CLIENT_SECRET,
+    code: code,
   };
 
   const options: GoogleAppsScript.URL_Fetch.URLFetchRequestOptions = {
@@ -85,14 +85,19 @@ const tokenPayloadHandler = function (tokenPayload: TokenPayload): TokenPayload 
   if (response.ok) {
     // Save access token.
     properties.setProperty('ACCESS_TOKEN', response.access_token);
+    // save workspace naem.
+    loadWorkspaceName();
     // Save channel name.
     properties.setProperty('CHANNEL_NAME', response.incoming_webhook.channel);
     // Save bot user id.
     properties.setProperty('BOT_USER_ID', response.bot_user_id);
   } else {
     console.warn(`error: ${response.error}`);
+    throw new Error(response.error);
   }
+}
 
+const tokenPayloadHandler = function (tokenPayload: TokenPayload): TokenPayload {
   delete tokenPayload.client_id;
 
   return tokenPayload;
@@ -303,16 +308,20 @@ function workspaceName(): string {
   if (SLACK_WORKSPACE_NAME !== null) {
     return SLACK_WORKSPACE_NAME;
   } else {
-    const teamInfo: TeamInfo = getTeamInfo();
+    return loadWorkspaceName();
+  }
+}
 
-    if (teamInfo !== null) {
-      // Save workspace name.
-      properties.setProperty('SLACK_WORKSPACE_NAME', teamInfo.domain);
+function loadWorkspaceName(): string {
+  const teamInfo: TeamInfo = getTeamInfo();
 
-      return teamInfo.domain;
-    } else {
-      return 'my';
-    }
+  if (teamInfo !== null) {
+    // Save workspace name.
+    properties.setProperty('SLACK_WORKSPACE_NAME', teamInfo.domain);
+
+    return teamInfo.domain;
+  } else {
+    return 'my';
   }
 }
 
