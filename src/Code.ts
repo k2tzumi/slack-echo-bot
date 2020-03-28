@@ -7,6 +7,7 @@ import { Profile } from "./Profile";
 import { TeamInfo } from "./TeamInfo";
 import { TokenPayload } from "./TokenPayload";
 import { OauthAccess } from "./OauthAccess";
+import { PostMessageResponse } from "./PostMessageResponse";
 
 const properties = PropertiesService.getScriptProperties();
 const VERIFICATION_TOKEN: string = properties.getProperty("VERIFICATION_TOKEN");
@@ -15,6 +16,12 @@ const VERIFICATION_TOKEN: string = properties.getProperty("VERIFICATION_TOKEN");
  * Authorizes and makes a request to the Slack API.
  */
 function doGet(request): GoogleAppsScript.HTML.HtmlOutput {
+  // Clear authentication by accessing with the get parameter `?logout=true`
+  if (request.parameter.logout) {
+    clearService();
+    return HtmlService.createTemplate('Logout').evaluate();
+  }
+
   const service: Service = getService();
 
   if (service.hasAccess()) {
@@ -42,7 +49,7 @@ function getService(): Service {
     .setClientSecret(CLIENT_SECRET)
     .setCallbackFunction('authCallback')
     .setPropertyStore(PropertiesService.getUserProperties())
-    .setScope('chat:write,channels:read,channels:history,users.profile:read,team:read,incoming-webhook')
+    .setScope('chat:write,channels:read,channels:history,users.profile:read,team:read,incoming-webhook,channels:manage')
     .setTokenPayloadHandler(tokenPayloadHandler);
 }
 
@@ -78,8 +85,10 @@ const tokenPayloadHandler = function (tokenPayload: TokenPayload): TokenPayload 
   if (response.ok) {
     // Save access token.
     properties.setProperty('ACCESS_TOKEN', response.access_token);
-    // Save incoming webhook.
-    properties.setProperty('INCOMING_WEBHOOKS_URL', response.incoming_webhook.url);
+    // Save channel name.
+    properties.setProperty('CHANNEL_NAME', response.incoming_webhook.channel);
+    // Save bot user id.
+    properties.setProperty('BOT_USER_ID', response.bot_user_id);
   } else {
     console.warn(`error: ${response.error}`);
   }
@@ -94,13 +103,6 @@ const tokenPayloadHandler = function (tokenPayload: TokenPayload): TokenPayload 
  */
 function clearService() {
   getService().reset();
-}
-
-/**
- * Logs the redict URI to register.
- */
-function logRedirectUri() {
-  console.log(OAuth2.getRedirectUri());
 }
 
 function getAccessToken(): string {
@@ -160,13 +162,20 @@ function doPost(e): GoogleAppsScript.Content.TextOutput {
   );
 }
 
+const BOT_USER_ID: string = properties.getProperty("BOT_USER_ID");
+
 export function eventHandler(event: MessageEvent) {
   if (event.type === "message") {
     switch (event.subtype || '') {
       case '':
       case 'file_share':
       case 'thread_broadcast':
-        return messageSent(event);
+        if (event.user !== BOT_USER_ID) {
+          return messageSent(event);
+        } else {
+          console.info(`ignore bot user event ${event.subtype}`);
+          return { ignored: event }
+        }
       default:
         console.info(`ignore subtype event ${event.subtype}`);
         return { ignored: event }
@@ -337,19 +346,31 @@ function isEventIdProceeded(eventId: string): boolean {
   }
 }
 
-const INCOMING_WEBHOOKS_URL: string = properties.getProperty("INCOMING_WEBHOOKS_URL");
+const CHANNEL_NAME: string = properties.getProperty("CHANNEL_NAME");
 
 function postSlack(attachment: MessageAttachment): void {
   const jsonData = {
+    channel: CHANNEL_NAME,
     link_names: true,
+    mrkdwn: true,
     attachments: [attachment],
   };
 
+  const headers = {
+    "content-type": "application/json",
+    "Authorization": `Bearer ${getAccessToken()}`,
+  }
+
   const options: GoogleAppsScript.URL_Fetch.URLFetchRequestOptions = {
-    contentType: "application/json",
     method: "post",
-    payload: JSON.stringify(jsonData)
+    headers: headers,
+    payload: JSON.stringify(jsonData),
   };
 
-  UrlFetchApp.fetch(INCOMING_WEBHOOKS_URL, options);
+  const response: PostMessageResponse = JSON.parse(UrlFetchApp.fetch('https://slack.com/api/chat.postMessage', options).getContentText());
+
+  if (!response.ok) {
+    console.warn(response.error);
+    throw new Error(`message post faild. ${JSON.stringify(response)}`);
+  }
 }

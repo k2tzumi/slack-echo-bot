@@ -30,7 +30,8 @@ interface AuthedUser {
 }
 
 interface IncomingWebhook {
-    url: string;
     channel: string;
+    channel_id: string;
     configuration_url: string;
+    url: string;
 }
