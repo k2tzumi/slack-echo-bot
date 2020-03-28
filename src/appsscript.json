@@ -1,17 +1,22 @@
 {
   "timeZone": "Asia/Tokyo",
   "dependencies": {
-    "libraries": [{
-      "userSymbol": "OAuth2",
-      "libraryId": "1B7FSrk5Zi6L1rSxxTDgDEUsPzlukDsi4KGuTMorsTQHhGBzBkMun4iDF",
-      "version": "37"
-    }]
+    "libraries": [
+      {
+        "userSymbol": "OAuth2",
+        "libraryId": "1B7FSrk5Zi6L1rSxxTDgDEUsPzlukDsi4KGuTMorsTQHhGBzBkMun4iDF",
+        "version": "37"
+      }
+    ]
   },
   "webapp": {
     "access": "ANYONE_ANONYMOUS",
     "executeAs": "USER_DEPLOYING"
   },
   "exceptionLogging": "STACKDRIVER",
-  "urlFetchWhitelist": ["https://hooks.slack.com/"],
+  "urlFetchWhitelist": [
+    "https://slack.com/",
+    "https://hooks.slack.com/"
+  ],
   "runtimeVersion": "V8"
 }
