@@ -9,7 +9,7 @@ help:
 	clasp create --title slack_echo_bot --type webapp --rootDir ./src
 	clasp setting fileExtension ts
 	# clasp setting filePushOrder Code.ts
-	sed -i -e '$s/}/,"filePushOrder":["Code.ts"]}/' .clasp.json
+	sed -i -e 's/}/,"filePushOrder":["Code.ts"]}/' .clasp.json
 
 .PHONY: login
 login: ## Google login
