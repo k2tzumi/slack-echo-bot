@@ -6,14 +6,16 @@ export const verifySignature = function (e): boolean {
     const timestamp: string = e.headers['X-Slack-Request-Timestamp'] || e.headers['x-slack-request-timestamp'];
 
     if (verifyTimestamp(timestamp)) {
-        const rawBody = e.rawRequest;
-        const hmac = crypto.createHmac('sha256', SIGNING_SECRET);
-
+        const rawBody = e.postData.contents;
         const [version, hash] = signature.split('=');
+        const text = `${version}:${timestamp}:${rawBody}`;
 
-        hmac.update(`${version}:${timestamp}:${rawBody}`);
+        const hmac = Utilities.computeHmacSha256Signature(text, SIGNING_SECRET);
+        const sign = hmac.map(function (chr) {
+            return (chr + 256).toString(16).slice(-2)
+        }).join('');
 
-        return hmac.digest('hex') === hash;
+        return sign === hash;
     } else {
         return false;
     }
