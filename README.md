@@ -32,9 +32,9 @@ Grant access
 
 ### Register with the Slack API
 
-1. Create New App  
+* Create New App  
 https://api.slack.com/apps  
-
+Please make a note of `App Credentials` displayed after registration.
 
 ### Setting Script properties
 
@@ -45,7 +45,7 @@ In order to run the application and change its behavior, you need to set the fol
 |VERIFICATION_TOKEN|○|Basic Information > App Credentials > Verification Token|A token that easily authenticates the source of a hooked request|
 |CLIENT_ID|○|Basic Information > App Credentials > Client ID|Use with OAuth|
 |CLIENT_SECRET|○|Basic Information > App Credentials > Client Secret|Use with OAuth|
-|SLACK_WORKSPACE_NAME|optional|your workspace's name. e.g.) https://`example`.slack.com |default `my`|
+|SLACK_WORKSPACE_NAME|optional|your workspace's name. e.g.) https://`example`.slack.com ||
 |ACCESS_TOKEN|optional|Set automatically by oauth authentication|Access token issued after oauth authentication.|
 |CHANNEL_NAME|optional|Set automatically by oauth authentication|Channel name specified during oauth authentication.|
 |BOT_USER_ID|optional|Set automatically by oauth authentication|ID of bot user registered with slack api.|
@@ -80,11 +80,11 @@ You must specify a destination channel that bot can post to as an app.
 
 1. Open web application  
 `$ make application`  
-The browser will be launched with the following URL: 
+The browser will be launched with the following URL:  
 ex) https://script.google.com/macros/s/miserarenaiyo/exec  
 2. Click `Authorize.`  
 You must specify a destination channel that bot can post to as an app.
-3. Click `Allow`
+3. Click `Allow`  
 The following message is displayed when OAuth authentication is successful  
 ```
 Success!
