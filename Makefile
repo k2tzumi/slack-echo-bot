@@ -7,6 +7,9 @@ help:
 .clasp.json:
 	make login
 	clasp create --title slack_echo_bot --type webapp --rootDir ./src
+	clasp setting fileExtension ts
+	# clasp setting filePushOrder Code.ts
+	sed -i -e 's/}/,"filePushOrder":["Code.ts"]}/' .clasp.json
 
 .PHONY: login
 login: ## Google login
@@ -28,6 +31,11 @@ open: ## Open Google apps scripts
 open: .clasp.json
 	clasp open
 
+.PHONY: application
+application: ## Open web application
+application: .clasp.json
+	clasp open --webapp
+
 .PHONY: pull
 pull: ## Pull Google apps scripts
 pull: .clasp.json
@@ -41,4 +49,4 @@ lint:
 .PHONY: undeploy
 undeploy: ## all undeploy Google apps scripts
 undeploy:
-	clasp deployments | grep -e "@[0-9]" | cut -d" " -f2 | xargs -I{} clasp undeploy {}
+	clasp undeploy --all
