@@ -19,7 +19,9 @@ function doGet(request): GoogleAppsScript.HTML.HtmlOutput {
   // Clear authentication by accessing with the get parameter `?logout=true`
   if (request.parameter.logout) {
     clearService();
-    return HtmlService.createTemplate('Logout').evaluate();
+    const template = HtmlService.createTemplate('Logout<br /><a href="<?= requestUrl ?>" target="_blank">refresh</a>.');
+    template.requestUrl = getRequestURL();
+    return HtmlService.createHtmlOutput(template.evaluate());
   }
 
   const service: Service = getService();
@@ -60,14 +62,22 @@ function authCallback(request): GoogleAppsScript.HTML.HtmlOutput {
   const service: Service = getService();
   const authorized = service.handleCallback(request);
   if (authorized) {
-    initializeProperty(request.parameter.code);
-    return HtmlService.createHtmlOutput("Success! You can close this tab.");
-  } else {
-    return HtmlService.createHtmlOutput('Denied. You can close this tab.');
+    const oAuthAccess: OauthAccess = getOauthAccess(request.parameter.code);
+    if (oAuthAccess) {
+      initializeProperty(oAuthAccess);
+      // updateEventSubscriptions(oAuthAccess);
+
+      const template = HtmlService.createTemplate('Success!<br /><a href="<?= eventSubscriptionsUrl ?>">Setting EventSubscriptions</a>');
+      template.eventSubscriptionsUrl = `https://api.slack.com/apps/${oAuthAccess.app_id}/event-subscriptions?`;
+
+      return HtmlService.createHtmlOutput(template.evaluate());
+    }
   }
+
+  return HtmlService.createHtmlOutput('Denied. You can close this tab.');
 }
 
-function initializeProperty(code: string) {
+function getOauthAccess(code: string): OauthAccess | null {
   const formData = {
     client_id: CLIENT_ID,
     client_secret: CLIENT_SECRET,
@@ -83,18 +93,54 @@ function initializeProperty(code: string) {
   const response: OauthAccess = JSON.parse(UrlFetchApp.fetch('https://slack.com/api/oauth.v2.access', options).getContentText());
 
   if (response.ok) {
-    // Save access token.
-    properties.setProperty('ACCESS_TOKEN', response.access_token);
-    // save workspace naem.
-    loadWorkspaceName();
-    // Save channel name.
-    properties.setProperty('CHANNEL_NAME', response.incoming_webhook.channel);
-    // Save bot user id.
-    properties.setProperty('BOT_USER_ID', response.bot_user_id);
+    return response;
   } else {
     console.warn(`error: ${response.error}`);
-    throw new Error(response.error);
+    return null;
   }
+}
+
+function initializeProperty(oAuthAccess: OauthAccess) {
+  // Save access token.
+  properties.setProperty('ACCESS_TOKEN', oAuthAccess.access_token);
+  // save workspace naem.
+  loadWorkspaceName();
+  // Save channel name.
+  properties.setProperty('CHANNEL_NAME', oAuthAccess.incoming_webhook.channel);
+  // Save bot user id.
+  properties.setProperty('BOT_USER_ID', oAuthAccess.bot_user_id);
+}
+
+function updateEventSubscriptions(oAuthAccess: OauthAccess): void {
+  const formData = {
+    app: oAuthAccess.app_id,
+    url: getRequestURL(),
+    app_event_types: [],
+    enable: true,
+    bot_event_types: ["message.channels"],
+    unfurl_domains: [],
+    filter_teams: [],
+    set_active: true,
+    token: oAuthAccess.access_token,
+  };
+
+  const options: GoogleAppsScript.URL_Fetch.URLFetchRequestOptions = {
+    contentType: "application/x-www-form-urlencoded",
+    method: "post",
+    payload: formData
+  };
+
+  const response: OauthAccess = JSON.parse(UrlFetchApp.fetch('https://api.slack.com/api/developer.apps.events.subscriptions.updateSubs', options).getContentText());
+
+  if (!response.ok) {
+    console.warn(`error: ${response.error}`);
+    throw new Error(JSON.stringify(response));
+  }
+}
+
+function getRequestURL() {
+  const serviceURL = ScriptApp.getService().getUrl();
+  return serviceURL.replace('/dev', '/exec');
 }
 
 const tokenPayloadHandler = function (tokenPayload: TokenPayload): TokenPayload {
