@@ -8,9 +8,7 @@ import { TeamInfo } from "./TeamInfo";
 import { TokenPayload } from "./TokenPayload";
 import { OauthAccess } from "./OauthAccess";
 import { PostMessageResponse } from "./PostMessageResponse";
-
-const properties = PropertiesService.getScriptProperties();
-const VERIFICATION_TOKEN: string = properties.getProperty("VERIFICATION_TOKEN");
+import { verifySignature } from "./VerifySignature";
 
 /**
  * Authorizes and makes a request to the Slack API.
@@ -35,6 +33,8 @@ function doGet(request): GoogleAppsScript.HTML.HtmlOutput {
     return HtmlService.createHtmlOutput(template.evaluate());
   }
 }
+
+const properties = PropertiesService.getScriptProperties();
 
 const CLIENT_ID: string = properties.getProperty("CLIENT_ID");
 const CLIENT_SECRET: string = properties.getProperty("CLIENT_SECRET");
@@ -175,9 +175,9 @@ function getAccessToken(): string {
 
 function doPost(e): GoogleAppsScript.Content.TextOutput {
   const postData = JSON.parse(e.postData.getDataAsString());
-  if (postData.token !== VERIFICATION_TOKEN) {
-    console.warn("Invalid verification token: %s", postData.token);
-    throw new Error("Invalid verification token.");
+  if (verifySignature(e)) {
+    console.warn("Invalid singing secret");
+    throw new Error("Invalid singing secret");
   }
 
   let res = {};
