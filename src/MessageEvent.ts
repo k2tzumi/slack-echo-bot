@@ -15,4 +15,5 @@ export interface MessageEvent {
     thread_ts?: string;
     parent_user_id?: string;
     blocks?: [];
+    deleted_ts?: string;
 }
