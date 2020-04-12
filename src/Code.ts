@@ -227,6 +227,13 @@ export function eventHandler(event: MessageEvent) {
           console.info(`ignore bot user event ${event.subtype}`);
           return { ignored: event }
         }
+      case 'message_deleted':
+        if (event.user !== BOT_USER_ID) {
+          return messageDeleted(event);
+        } else {
+          console.info(`ignore bot user event ${event.subtype}`);
+          return { ignored: event }
+        }
       default:
         console.info(`ignore subtype event ${event.subtype}`);
         return { ignored: event }
@@ -235,6 +242,59 @@ export function eventHandler(event: MessageEvent) {
 
   console.error(`unsupported data ${event}`);
   return { unsupported: event };
+}
+
+function messageDeleted(event: MessageEvent): { [key: string]: string; } {
+  const messsageReference = getCacheMessage(event.channel, event.deleted_ts);
+
+  if (messsageReference) {
+    const response = unpostMessage(messsageReference.channel, messsageReference.ts);
+
+    return { "deleted": response };
+  } else {
+    return { "undeleted": extractLink(event) };
+  }
+}
+
+function unpostMessage(channel: string, ts: string): any {
+  const jsonData = {
+    channel: channel,
+    ts: ts,
+  };
+
+  const headers = {
+    "content-type": "application/json",
+    "Authorization": `Bearer ${getAccessToken()}`,
+  }
+
+  const options: GoogleAppsScript.URL_Fetch.URLFetchRequestOptions = {
+    method: "post",
+    headers: headers,
+    payload: JSON.stringify(jsonData),
+  };
+
+  const response = JSON.parse(UrlFetchApp.fetch('https://slack.com/api/chat.delete', options).getContentText());
+
+  if (!response.ok) {
+    console.warn(response.error);
+    throw new Error(`message delete faild. ${JSON.stringify(response)}`);
+  }
+
+  return response;
+}
+
+function getCacheMessage(channel: string, ts: string): { [key: string]: string; } | null {
+  const cash = CacheService.getScriptCache();
+  const key = `${channel}:${ts}`;
+  const value = cash.get(key);
+
+  if (value) {
+    const [channel, ts] = value.split(':');
+
+    return { "channel": channel, "ts": ts };
+  } else {
+    return null;
+  }
 }
 
 function messageSent(event: MessageEvent): { [key: string]: string; } {
@@ -408,6 +468,7 @@ function postSlack(attachment: MessageAttachment): void {
     channel: CHANNEL_NAME,
     link_names: true,
     mrkdwn: true,
+    unfurl_links: true,
     attachments: [attachment],
   };
 
@@ -428,4 +489,23 @@ function postSlack(attachment: MessageAttachment): void {
     console.warn(response.error);
     throw new Error(`message post faild. ${JSON.stringify(response)}`);
   }
+
+  cacheMessage(getMessageReference(attachment), response);
+}
+
+function cacheMessage(messageReference: { [key: string]: string; }, response: PostMessageResponse): void {
+  const cash = CacheService.getScriptCache();
+  const key = `${messageReference.channel}:${messageReference.ts}`;
+  const value = `${response.channel}:${response.ts}`;
+
+  cash.put(key, value);
+}
+
+function getMessageReference(attachment: MessageAttachment): { [key: string]: string; } {
+  const [/*posted_user*/, messageUrl] = attachment.footer.split('@');
+  const [massagePath,/*query*/] = messageUrl.split('?');
+  // ex) https://my.slack.com/archives/C2147483705/p1355517523.000005
+  const [/*schme*/, ,/*domain*/,/*archives*/, channel, ts] = massagePath.split('/');
+
+  return { "channel": channel, "ts": ts.slice(1) };
 }
