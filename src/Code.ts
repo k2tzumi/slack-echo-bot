@@ -298,14 +298,14 @@ function getCacheMessage(channel: string, ts: string): { [key: string]: string; 
 }
 
 function messageSent(event: MessageEvent): { [key: string]: string; } {
-  const attachement: MessageAttachment = convertMessageAttachment(event);
+  const [attachement, text] = convertMessageAttachment(event);
 
-  postSlack(attachement);
+  postSlack(attachement, text);
 
   return { posted: attachement.text };
 }
 
-function convertMessageAttachment(event: MessageEvent): MessageAttachment {
+function convertMessageAttachment(event: MessageEvent): [MessageAttachment, string] {
   let text: string = event.text || '';
   let image_url: string = null;
 
@@ -327,7 +327,12 @@ function convertMessageAttachment(event: MessageEvent): MessageAttachment {
     ts: Number(event.event_ts)
   };
 
-  return Object.assign(attachment, profileAttachment(event.user), image_url ? { image_url: image_url } : null);
+  return [
+    Object.assign(attachment, profileAttachment(event.user), image_url ? { image_url: image_url } : null),
+    extractURL(event.text).filter(function (url: string) {
+      return url.indexOf(`https://${workspaceName()}.slack.com`) !== 0;
+    }).join('\n')
+  ];
 }
 
 function profileAttachment(userID: string): MessageAttachment {
@@ -463,12 +468,13 @@ function isEventIdProceeded(eventId: string): boolean {
 
 const CHANNEL_NAME: string = properties.getProperty("CHANNEL_NAME");
 
-function postSlack(attachment: MessageAttachment): void {
+function postSlack(attachment: MessageAttachment, text: string): void {
   const jsonData = {
     channel: CHANNEL_NAME,
     link_names: true,
     mrkdwn: true,
     unfurl_links: true,
+    text: text,
     attachments: [attachment],
   };
 
@@ -488,12 +494,6 @@ function postSlack(attachment: MessageAttachment): void {
   if (!response.ok) {
     console.warn(response.error);
     throw new Error(`message post faild. ${JSON.stringify(response)}`);
-  }
-
-  const urls = externalURLs(attachment);
-
-  if (urls.length > 0) {
-    unfurl(urls, response.channel, response.ts);
   }
 
   cacheMessage(getMessageReference(attachment), response);
