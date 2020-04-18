@@ -252,7 +252,7 @@ function messageDeleted(event: MessageEvent): { [key: string]: string; } {
 
     return { "deleted": response };
   } else {
-    return { "undeleted": extractLink(event) };
+    return { "undeleted": extractMessageLink(event) };
   }
 }
 
@@ -298,14 +298,14 @@ function getCacheMessage(channel: string, ts: string): { [key: string]: string; 
 }
 
 function messageSent(event: MessageEvent): { [key: string]: string; } {
-  const attachement: MessageAttachment = convertMessageAttachment(event);
+  const [attachement, text] = convertMessageAttachment(event);
 
-  postSlack(attachement);
+  postSlack(attachement, text);
 
   return { posted: attachement.text };
 }
 
-function convertMessageAttachment(event: MessageEvent): MessageAttachment {
+function convertMessageAttachment(event: MessageEvent): [MessageAttachment, string] {
   let text: string = event.text || '';
   let image_url: string = null;
 
@@ -323,11 +323,16 @@ function convertMessageAttachment(event: MessageEvent): MessageAttachment {
   const attachment: MessageAttachment = {
     text: text,
     color: "#36a64f",
-    footer: `Posted in <#${event.channel}> @ ${extractLink(event)}`,
+    footer: `Posted in <#${event.channel}> @ ${extractMessageLink(event)}`,
     ts: Number(event.event_ts)
   };
 
-  return Object.assign(attachment, profileAttachment(event.user), image_url ? { image_url: image_url } : null);
+  return [
+    Object.assign(attachment, profileAttachment(event.user), image_url ? { image_url: image_url } : null),
+    extractURL(event.text).filter(function (url: string) {
+      return url.indexOf(`https://${workspaceName()}.slack.com`) !== 0;
+    }).join('\n')
+  ];
 }
 
 function profileAttachment(userID: string): MessageAttachment {
@@ -398,7 +403,7 @@ function getProfile(userID: string): Profile | null {
   }
 }
 
-function extractLink(event: MessageEvent): string {
+function extractMessageLink(event: MessageEvent): string {
   let url = `https://${workspaceName()}.slack.com/archives/${event.channel}/p${event.event_ts}`;
 
   if (typeof event.thread_ts !== "undefined") {
@@ -463,12 +468,13 @@ function isEventIdProceeded(eventId: string): boolean {
 
 const CHANNEL_NAME: string = properties.getProperty("CHANNEL_NAME");
 
-function postSlack(attachment: MessageAttachment): void {
+function postSlack(attachment: MessageAttachment, text: string): void {
   const jsonData = {
     channel: CHANNEL_NAME,
     link_names: true,
     mrkdwn: true,
     unfurl_links: true,
+    text: text,
     attachments: [attachment],
   };
 
@@ -491,6 +497,51 @@ function postSlack(attachment: MessageAttachment): void {
   }
 
   cacheMessage(getMessageReference(attachment), response);
+}
+
+function unfurl(urls: Array<string>, channel: string, ts: string) {
+  let unfurl = {};
+  unfurl[urls[0]] = { text: urls[0] };
+
+  const jsonData = {
+    channel: channel,
+    ts: ts,
+    unfurls: JSON.stringify(unfurl),
+  };
+
+  const headers = {
+    "content-type": "application/json",
+    "Authorization": `Bearer ${getAccessToken()}`,
+  }
+
+  const options: GoogleAppsScript.URL_Fetch.URLFetchRequestOptions = {
+    method: "post",
+    headers: headers,
+    payload: JSON.stringify(jsonData),
+  };
+
+  const response: PostMessageResponse = JSON.parse(UrlFetchApp.fetch('https://slack.com/api/chat.unfurl', options).getContentText());
+
+  if (!response.ok) {
+    console.warn(response.error);
+    throw new Error(`unfurl faild. ${JSON.stringify(response)}`);
+  }
+}
+
+function externalURLs(attachment: MessageAttachment): Array<string> {
+  const urls = extractURL(attachment.text);
+
+  return urls.filter(function (url: string) {
+    return url.indexOf(`https://${workspaceName()}.slack.com`) !== 0;
+  });
+}
+
+function extractURL(text: string): Array<string> {
+  const pattern = /(https?:\/\/[\x21-\x7e]+)/g;
+  const list = text.match(pattern);
+
+  if (!list) return [];
+  return list;
 }
 
 function cacheMessage(messageReference: { [key: string]: string; }, response: PostMessageResponse): void {
